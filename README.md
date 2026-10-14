@@ -4,13 +4,15 @@
 
 [![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v6.0.2-blue.svg)](https://github.com/espressif/esp-idf)&nbsp;[![Target](https://img.shields.io/badge/Target-ESP32-red.svg)](https://www.espressif.com/)&nbsp;[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[🇷🇺 Русский](#-русский) | [🇬🇧 English](#-english)
+[🇷🇺 Русский](#русский) | [🇬🇧 English](#english)
 
 ![](./esp32-oled.jpg)
 
 </div>
 
 ---
+
+<a name="русский"></a>
 
 ## 🇷🇺
 
@@ -82,6 +84,8 @@ VSCode автоматически:
 _(Для остановки монитора нажмите `Ctrl + ]`)._
 
 ---
+
+<a name="english"></a>
 
 ## 🇬🇧
 
