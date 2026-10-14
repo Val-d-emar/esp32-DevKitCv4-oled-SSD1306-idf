@@ -28,10 +28,12 @@
     "IDF_TARGET": "esp32"
   },
   "idf.flashType": "UART",
+  "idf.flashBaudRate": "460800",
   "clangd.path": "/home/all/.espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clangd",
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
     "--compile-commands-dir=/media/all/Protected/home/all/src/C/ESP-IDF/oled_project/build"
-  ]
+  ],
+  "idf.monitorPort": "/dev/ttyUSB0"
 }
