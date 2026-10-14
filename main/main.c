@@ -47,6 +47,103 @@ static const uint8_t init_cmds[] = {
     0xAF  // Display ON! Включение питания панели
 };
 
+// ============================================================================
+// Графические примитивы для работы с буфером
+// ============================================================================
+
+// Очистка буфера экрана (заливка черным)
+static void oled_clear(void) { memset(&oled_buffer[1], 0x00, 1024); }
+
+// Заливка всего экрана (белый экран)
+static void oled_fill(void) { memset(&oled_buffer[1], 0xFF, 1024); }
+
+// Установка состояния одного пикселя (x: 0..127, y: 0..63)
+static void oled_draw_pixel(int x, int y, bool color) {
+  // Защита от выхода за границы массива (Out of Bounds)
+  if (x < 0 || x >= 128 || y < 0 || y >= 64) {
+    return;
+  }
+
+  // Вычисляем индекс байта и маску бита
+  int page = y / 8;
+  int bit = y % 8;
+  int index = 1 + (page * 128) + x;
+
+  if (color) {
+    oled_buffer[index] |= (1 << bit); // Зажечь пиксель
+  } else {
+    oled_buffer[index] &= ~(1 << bit); // Погасить пиксель
+  }
+}
+
+// Отрисовка прямоугольной рамки
+static void oled_draw_rect(int x, int y, int w, int h, bool color) {
+  // Горизонтальные линии
+  for (int i = x; i < x + w; i++) {
+    oled_draw_pixel(i, y, color);
+    oled_draw_pixel(i, y + h - 1, color);
+  }
+  // Вертикальные линии
+  for (int j = y; j < y + h; j++) {
+    oled_draw_pixel(x, j, color);
+    oled_draw_pixel(x + w - 1, j, color);
+  }
+}
+
+// Отрисовка линии по алгоритму Брезенхэма
+static void oled_draw_line(int x0, int y0, int x1, int y1, bool color) {
+  int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+  int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+  int err = dx + dy, e2;
+
+  while (1) {
+    oled_draw_pixel(x0, y0, color);
+    if (x0 == x1 && y0 == y1)
+      break;
+    e2 = 2 * err;
+    if (e2 >= dy) {
+      err += dy;
+      x0 += sx;
+    }
+    if (e2 <= dx) {
+      err += dx;
+      y0 += sy;
+    }
+  }
+}
+
+// Отрисовка постоянных (фоновых) элементов сцены
+static void draw_background(void) {
+  // Рамка по периметру
+  oled_draw_rect(0, 0, 128, 64, true);
+
+  // Диагональный крест
+  oled_draw_line(0, 0, 127, 63, true);
+  oled_draw_line(0, 63, 127, 0, true);
+
+  // Центральный прямоугольник
+  oled_draw_rect(44, 22, 40, 20, true);
+}
+
+// Отправка всего кадрового буфера в дисплей с гарантированным сбросом адреса
+static void oled_update(i2c_master_dev_handle_t dev_handle) {
+  // Команды сброса курсора записи в нулевые координаты (0, 0)
+  // 0x21 - диапазон столбцов от 0 до 127
+  // 0x22 - диапазон страниц от 0 до 7
+  static const uint8_t reset_addr_cmds[] = {
+      0x00,             // Control Byte: поток команд
+      0x21, 0x00, 0x7F, // Set Column Address: start=0, end=127
+      0x22, 0x00, 0x07  // Set Page Address: start=0, end=7
+  };
+
+  // 1. Принудительно возвращаем указатель памяти SSD1306 в начало координат
+  i2c_master_transmit(dev_handle, reset_addr_cmds, sizeof(reset_addr_cmds),
+                      100);
+
+  // 2. Передаем сам кадровый буфер (байт 0x40 + 1024 байта пикселей)
+  i2c_master_transmit(dev_handle, oled_buffer, sizeof(oled_buffer), 1000);
+}
+
 void app_main(void) {
   ESP_LOGI(TAG, "Старт инициализации шины и SSD1306...");
 
@@ -77,32 +174,51 @@ void app_main(void) {
   ESP_ERROR_CHECK(
       i2c_master_transmit(dev_handle, init_cmds, sizeof(init_cmds), 100));
 
-  // 4. Формирование тестового рисунка в буфере
-  // Нулевой байт - префикс данных I2C
-  oled_buffer[0] = 0x40;
+  // 4. Очищаем кадровый буфер и рисуем тестовую графику
+  oled_buffer[0] = 0x40; // Префикс данных I2C
+  oled_clear();
 
-  // Заполняем страницы тестовым узором: чередование полос 0xAA (10101010b) и
-  // 0x55 (01010101b)
-  for (int i = 1; i <= 1024; i++) {
-    oled_buffer[i] = ((i / 64) % 2 == 0) ? 0xAA : 0x55;
-  }
+  // Рисуем рамку по внешнему периметру дисплея (128x64)
+  oled_draw_rect(0, 0, 128, 64, true);
 
-  // 5. Передача буфера кадра (1025 байт одной транзакцией)
-  ESP_LOGI(TAG, "Заливка тестового кадра в дисплей...");
-  ESP_ERROR_CHECK(
-      i2c_master_transmit(dev_handle, oled_buffer, sizeof(oled_buffer), 1000));
+  // Рисуем диагональный крест через весь экран
+  oled_draw_line(0, 0, 127, 63, true);
+  oled_draw_line(0, 63, 127, 0, true);
 
-  ESP_LOGI(TAG,
-           "Экран должен светиться! Запуск цикла инверсии каждые 1.5 сек...");
+  // Рисуем прямоугольник по центру
+  oled_draw_rect(44, 22, 40, 20, true);
 
-  // 6. Демонстрация живой работы: инверсия экрана (0xA7 - инверсия, 0xA6 -
-  // норма)
-  bool inverted = false;
+  // 5. Выгружаем нарисованный кадр в дисплей
+  ESP_LOGI(TAG, "Отрисовка геометрии...");
+  oled_update(dev_handle);
+
+  // 6. Анимация: бегающий квадратик внутри экрана в цикле
+  // Канонический цикл рендеринга: Clear -> Draw World -> Draw Actor -> Present
+  ESP_LOGI(TAG, "Запуск чистого цикла рендеринга...");
+  int box_x = 5;
+  int box_dir = 1;
+
   while (1) {
-    vTaskDelay(pdMS_TO_TICKS(1500));
-    inverted = !inverted;
-    uint8_t cmd[2] = {0x00, inverted ? 0xA7 : 0xA6};
-    i2c_master_transmit(dev_handle, cmd, sizeof(cmd), 100);
-    ESP_LOGI(TAG, "Инверсия дисплея: %s", inverted ? "ВКЛ" : "ВЫКЛ");
+    oled_fill();
+    // Шаг 1: Очищаем кадровый буфер
+    oled_clear();
+
+    // Шаг 2: Рисуем статический фон (крест, рамку, центр)
+    draw_background();
+
+    // Шаг 3: Рассчитываем координаты и рисуем подвижный объект поверх
+    box_x += box_dir * 2;
+    if (box_x >= 112)
+      box_dir = -1;
+    if (box_x <= 5)
+      box_dir = 1;
+
+    oled_draw_rect(box_x, 50, 10, 10, true);
+
+    // Шаг 4: Выталкиваем сформированный кадр на дисплей
+    oled_update(dev_handle);
+
+    // Задержка между кадрами (~50 FPS)
+    vTaskDelay(pdMS_TO_TICKS(20));
   }
 }
