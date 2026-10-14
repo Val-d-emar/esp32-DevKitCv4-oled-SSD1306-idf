@@ -45,7 +45,7 @@
 
 ### 🛠️ Настройка и запуск через графический интерфейс VSCode
 
-Для работы используется редактор **VSCode** с официальным расширением **ESP-IDF Extension** в среде Linux (Debian 13). Все действия выполняются через нижнюю статус-панель редактора.
+Для работы используется редактор **VSCode** с официальным расширением **ESP-IDF Extension**. Все действия выполняются через нижнюю статус-панель редактора.
 
 #### 1. Права доступа к порту (разово в Linux)
 
@@ -118,7 +118,7 @@ The project demonstrates hardware initialization of the display controller (incl
 
 ### 🛠️ Configuration & Run via VSCode GUI
 
-Optimized for **VSCode** with the official **ESP-IDF Extension** on Debian 13 Linux. All steps are performed using the bottom status bar icons.
+Optimized for **VSCode** with the official **ESP-IDF Extension**. All steps are performed using the bottom status bar icons.
 
 #### 1. Port Permissions (One-time Linux setup)
 
